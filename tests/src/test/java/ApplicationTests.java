@@ -26,6 +26,9 @@ import mindustry.type.*;
 import mindustry.world.*;
 import mindustry.world.blocks.payloads.*;
 import mindustry.world.blocks.storage.*;
+import mindustry.world.blocks.logic.LogicBlock;
+import mindustry.world.blocks.logic.LogicBlock.LogicLink;
+import mindustry.world.blocks.distribution.Conveyor;
 import org.json.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.*;
@@ -887,6 +890,136 @@ public class ApplicationTests{
 
         checkPayloads();
     }
+
+
+    @Test
+    void LogicBlockInit() {
+        createMap();
+        state.set(State.playing);
+        
+        // Place a microProcessor
+        Tile tile = world.tile(5, 5);
+        Block processor = Blocks.microProcessor;
+        tile.setBlock(processor, Team.sharded);
+        // Get the LogicBlock.LogicBuild instance
+        LogicBlock.LogicBuild build = (LogicBlock.LogicBuild)tile.build;
+        
+        // Test initial state of LogicBlock
+        assertTrue(processor.configurable, "Block should be configurable");
+        assertTrue(processor.canBreak(tile), "Logic block can break by default");
+        assertFalse(processor.checkForceDark(tile), "Logic block should be accessible by default");
+        
+        // Test initial state of LogicBuild
+        assertNotNull(build, "Logic block should have a build");
+        assertEquals("", build.code, "Initial code should be empty");
+        assertNotNull(build.executor, "Executor should be initialized");
+        assertFalse(build.executor.initialized(), "Executor should not be initialized without code");
+        assertNotNull(build.links, "Links should be initialized");
+        assertTrue(build.links.isEmpty(), "Initial links should be empty");
+        
+    }
+
+    @Test
+    void LogicBuildUpdateCode() {
+        createMap();
+        state.set(State.playing);
+        
+        // Place a microProcessor
+        Tile tile = world.tile(5, 5);
+        Block processor = Blocks.microProcessor;
+        tile.setBlock(processor, Team.sharded);
+        // Get the LogicBlock.LogicBuild instance
+        LogicBlock.LogicBuild build = (LogicBlock.LogicBuild)tile.build;
+
+        // Test valid
+        String testCode1 = "print \"test\"";
+        build.updateCode(testCode1);
+        assertEquals(testCode1, build.code, "Logic code should be set");
+        assertTrue(build.executor.initialized(), "Executor should be initialized after code update");
+
+        // Test null
+        String testCode2 = "";
+        build.updateCode(testCode2);
+        assertEquals(testCode2, build.code, "Logic code should be set");
+        assertFalse(build.executor.initialized(), "Executor should not be initialized after invalid code update");
+
+        // Test invalid
+        String testCode3 = "12345";
+        build.updateCode(testCode3);
+        assertEquals(testCode3, build.code, "Logic code should be set");
+        assertTrue(build.executor.initialized(), "Executor should be initialized even with invalid code");
+
+         // Test long
+         StringBuilder sb = new StringBuilder();
+         for (int i = 0; i < 256; i++) {
+             sb.append("long");
+         }
+         String testCode4 = sb.toString();
+         build.updateCode(testCode4);
+         assertEquals(testCode4, build.code, "Logic code should be set");
+         assertTrue(build.executor.initialized(), "Executor should be initialized after code update");
+
+
+        // Test valid link1
+        Tile conveyorTile1 = world.tile(5, 5);
+        Block c1 = Blocks.conveyor;
+        conveyorTile1.setBlock(c1);
+        build.links.add(new LogicLink(5, 5, "conveyor1", true));
+        build.updateCode("control enabled conveyor1 1");
+        assertTrue(build.executor.initialized());
+
+        // Test valid link2
+        Tile conveyorTile2 = world.tile(1, 1);
+        Block c2 = Blocks.conveyor;
+        conveyorTile2.setBlock(c2);
+        build.links.add(new LogicLink(5, 5, "conveyor2", true));
+        build.updateCode("control enabled conveyor2 1");
+        assertTrue(build.executor.initialized());
+
+        // Test invalid link1
+        build.links.add(new LogicLink(100, 100, "invalid1", false));
+        build.updateCode("control enabled invalid1 1");
+        assertTrue(build.executor.initialized());
+
+        // Test invalid link2
+        build.links.add(new LogicLink(-5, -5, "invalid2", false));
+        build.updateCode("control enabled invalid2 1");
+        assertTrue(build.executor.initialized());
+    }
+
+    // @Test
+    // void LogicBuildLink() {
+    //     createMap();
+    //     state.set(State.playing);
+        
+    //     // Place a microProcessor
+    //     Tile tile1 = world.tile(100, 100);
+    //     Block processor = Blocks.microProcessor;
+    //     tile1.setBlock(processor, Team.sharded);
+        
+    //     // Place a conveyor
+    //     Tile tile2 = world.tile(5, 5);
+    //     Block con1 = Blocks.conveyor;
+    //     tile2.setBlock(con1, Team.sharded);
+
+    //     // Get the LogicBlock.LogicBuild instance
+    //     LogicBlock.LogicBuild probuild = (LogicBlock.LogicBuild)tile1.build;
+    //     Conveyor.ConveyorBuild conbuild = (Conveyor.ConveyorBuild)tile2.build;
+
+    //     // Test initial state
+    //     assertTrue(probuild.links.isEmpty(), "Links should start empty");
+    //     assertTrue(processor.configurable, "Block should be configurable");
+    //     probuild.links.add(new LogicLink(100, 100, "invalid1", false));
+
+    //     // Link conveyor and processor
+    //     // processor.config(con1, probuild);
+
+
+    // }
+
+    
+
+
 
     @TestFactory
     DynamicTest[] testSectorValidity(){
