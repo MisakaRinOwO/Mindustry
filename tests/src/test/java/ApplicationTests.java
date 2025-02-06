@@ -409,6 +409,22 @@ public class ApplicationTests{
         assertTrue(world.tile(2, 1).build.liquids.current() == Liquids.water);
     }
 
+    // @Test
+    // void pTest1(){
+    //     assertEquals(12, 11);
+    // }
+
+    // @Test
+    // void pTest2(){
+    //     assertEquals(12, 11);
+    // }
+
+    // @Test
+    // void pTest3(){
+    //     assertEquals(12, 11);
+    // }
+
+
     @Test
     void liquidJunctionOutput(){
         world.loadMap(testMap);

@@ -1,1 +1,52 @@
+apply plugin: 'jacoco'
+
 sourceSets.test.resources.srcDirs = ["src/test/resources"]
+
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+jacocoTestReport {
+    dependsOn test
+    
+    reports {
+        xml {
+            required = true
+            destination = file("${project.rootDir}/jacocoTestReport.xml")
+        }
+        html.required = true
+    }
+
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                "**/android/**",
+                "**/ios/**",
+                "**/tools/**"
+            ])
+        }))
+    }
+
+    // Include core project sources
+    dependsOn(project(':core').tasks.classes)
+    sourceSets project(':core').sourceSets.main
+    additionalSourceDirs.from = files(project(':core').sourceSets.main.allSource.srcDirs)
+    classDirectories.from = files(project(':core').sourceSets.main.output)
+}
+
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            element = 'CLASS'
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.5
+            }
+        }
+    }
+}
+
+test {
+    finalizedBy jacocoTestReport
+}
