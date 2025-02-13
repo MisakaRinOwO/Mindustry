@@ -412,21 +412,6 @@ public class ApplicationTests{
         assertTrue(world.tile(2, 1).build.liquids.current() == Liquids.water);
     }
 
-    // @Test
-    // void pTest1(){
-    //     assertEquals(12, 11);
-    // }
-
-    // @Test
-    // void pTest2(){
-    //     assertEquals(12, 11);
-    // }
-
-    // @Test
-    // void pTest3(){
-    //     assertEquals(12, 11);
-    // }
-
 
     @Test
     void liquidJunctionOutput(){
@@ -987,35 +972,51 @@ public class ApplicationTests{
         assertTrue(build.executor.initialized());
     }
 
-    // @Test
-    // void LogicBuildLink() {
-    //     createMap();
-    //     state.set(State.playing);
+    @Test
+    void testLogicBlockLinkFSM(){
+        Tiles tiles = world.resize(300, 300);
+        world.beginMapLoad();
+        tiles.fill();
+        world.endMapLoad();
         
-    //     // Place a microProcessor
-    //     Tile tile1 = world.tile(100, 100);
-    //     Block processor = Blocks.microProcessor;
-    //     tile1.setBlock(processor, Team.sharded);
-        
-    //     // Place a conveyor
-    //     Tile tile2 = world.tile(5, 5);
-    //     Block con1 = Blocks.conveyor;
-    //     tile2.setBlock(con1, Team.sharded);
+        state.set(State.playing);
 
-    //     // Get the LogicBlock.LogicBuild instance
-    //     LogicBlock.LogicBuild probuild = (LogicBlock.LogicBuild)tile1.build;
-    //     Conveyor.ConveyorBuild conbuild = (Conveyor.ConveyorBuild)tile2.build;
+        // Place and build logic & target blocks
+        Tile logicTile = world.tile(1, 1);
+        Tile targetTile = world.tile(5, 5);
+        Tile emptyTile = world.tile(3, 3);
+        Tile invalidTile1 = world.tile(100, 100);
 
-    //     // Test initial state
-    //     assertTrue(probuild.links.isEmpty(), "Links should start empty");
-    //     assertTrue(processor.configurable, "Block should be configurable");
-    //     probuild.links.add(new LogicLink(100, 100, "invalid1", false));
+        logicTile.setBlock(Blocks.microProcessor, Team.sharded);
+        targetTile.setBlock(Blocks.conveyor, Team.sharded);
+        invalidTile1.setBlock(Blocks.conveyor, Team.sharded);
 
-    //     // Link conveyor and processor
-    //     // processor.config(con1, probuild);
+        LogicBlock.LogicBuild build = (LogicBlock.LogicBuild)logicTile.build;
+        Building targetBuild = targetTile.build;
+        Building invalidBuild = invalidTile1.build;
 
+        // Test Idle (logic block clicked) Configuring (click on validated non-linked block) Link-Active
+        assertTrue(build.validLink(targetBuild), "Conveyor should be valid for linking");
+        assertTrue(build.links.isEmpty(), "Initial link on logic block should be empty");
+        build.onConfigureBuildTapped(targetBuild);
+        assertEquals(1, build.links.size, "Should add link to logic block");
+        assertTrue(build.links.first().active,"Link should be active");
 
-    // }
+        // Test Configuring (click on self or invalid position) Idle 
+        build.onConfigureBuildTapped(invalidBuild); // Clicking on out of range(invalid) block
+        build.configure(emptyTile.pos()); // Clicking on empty tile
+        build.onConfigureBuildTapped(null); // Clicking on empty
+        build.onConfigureBuildTapped(build); // Clicking on self
+        assertEquals(1, build.links.size, "Link count should remain 1");
+
+        // Test Configuring (click on linked active block) Link_Inactive
+        build.onConfigureBuildTapped(targetBuild);
+        assertFalse(build.links.first().active,"Link should now be inactive");
+
+        // Test Configuring (click on linked inactive block) Link_Active
+        build.onConfigureBuildTapped(targetBuild);
+        assertTrue(build.links.first().active,"Link should now be active");
+    }
 
     
 

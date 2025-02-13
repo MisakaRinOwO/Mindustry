@@ -1,6 +1,16 @@
 apply plugin: 'jacoco'
+apply plugin: 'java'
 
 sourceSets.test.resources.srcDirs = ["src/test/resources"]
+
+dependencies {
+    testImplementation project(":core")
+    testImplementation "org.junit.jupiter:junit-jupiter-params:5.7.1"
+    testImplementation "org.junit.jupiter:junit-jupiter-api:5.7.1"
+    testImplementation arcModule("backends:backend-headless")
+    testImplementation "org.json:json:20230618"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.7.1"
+}
 
 jacoco {
     toolVersion = "0.8.11"
@@ -48,5 +58,11 @@ jacocoTestCoverageVerification {
 }
 
 test {
+    useJUnitPlatform()
+    workingDir = file("../core/assets")
+    testLogging {
+        exceptionFormat = 'full'
+        showStandardStreams = true
+    }
     finalizedBy jacocoTestReport
 }
