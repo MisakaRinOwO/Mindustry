@@ -27,8 +27,11 @@ import mindustry.world.*;
 import mindustry.world.blocks.payloads.*;
 import mindustry.world.blocks.storage.*;
 import mindustry.world.blocks.logic.LogicBlock;
+import mindustry.world.blocks.logic.LogicBlock.LogicBuild;
 import mindustry.world.blocks.logic.LogicBlock.LogicLink;
 import mindustry.world.blocks.distribution.Conveyor;
+import mindustry.ai.types.LogicAI;
+
 import org.json.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.*;
@@ -38,8 +41,10 @@ import java.io.*;
 import java.nio.*;
 
 import static mindustry.Vars.*;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.DynamicTest.*;
+
 
 public class ApplicationTests{
     static Map testMap;
@@ -1018,8 +1023,62 @@ public class ApplicationTests{
         assertTrue(build.links.first().active,"Link should now be active");
     }
 
-    
+    @Test
+    public void testDrawSelectLogic() {
+        // Initiate map and building
+        createMap();
+        state.set(State.playing);
+        Tile tile = world.tile(5, 5);
+        Block processor = Blocks.microProcessor;
+        tile.setBlock(processor, Team.sharded);
+        LogicBlock.LogicBuild build = (LogicBlock.LogicBuild)tile.build;
+        
+        // Testing drawing on self
+        build.tag = "Test Tag";
+        build.iconTag = 'A';
+        
+        LogicBuild.DrawSelectInfo info = build.getDrawSelectInfo();
+        
+        assertTrue(info.hasTag);
+        assertEquals("Test Tag", info.tag);
+        assertTrue(info.hasIcon);
+        assertEquals('A', info.iconTag);
+        
+        // Testing drawing on controlled units
+        // Create units
+        Unit unit1 = UnitTypes.poly.create(Team.sharded);
+        unit1.set(10f, 20f);
+        Groups.unit.add(unit1);
 
+        Unit unit2 = UnitTypes.poly.create(Team.sharded);
+        unit2.set(30f, 40f);
+        Groups.unit.add(unit2);
+
+        // Bind to AI controller
+        LogicAI ai1 = new LogicAI();
+        ai1.controller = build;
+        unit1.controller(ai1);
+        
+        LogicAI ai2 = new LogicAI();
+        ai2.controller = build;
+        unit2.controller(ai2);
+
+        LogicBuild.DrawSelectInfo newInfo = build.getDrawSelectInfo();
+
+        // Verify properties
+        assertEquals(2, newInfo.controlledUnits.size());
+        LogicBuild.UnitInfo unitInfo1 = newInfo.controlledUnits.get(0);
+        assertEquals(10f, unitInfo1.x);
+        assertEquals(20f, unitInfo1.y);
+        assertEquals(unit1.hitSize, unitInfo1.hitSize);
+        assertEquals(unit1.rotation, unitInfo1.rotation);
+        
+        LogicBuild.UnitInfo unitInfo2 = newInfo.controlledUnits.get(1);
+        assertEquals(30f, unitInfo2.x);
+        assertEquals(40f, unitInfo2.y);
+        assertEquals(unit2.hitSize, unitInfo2.hitSize);
+        assertEquals(unit2.rotation, unitInfo2.rotation);
+    }
 
 
     @TestFactory

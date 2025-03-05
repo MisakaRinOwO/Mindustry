@@ -27,6 +27,8 @@ import mindustry.world.meta.*;
 
 import java.io.*;
 import java.util.zip.*;
+import java.util.List;
+import java.util.ArrayList;
 
 import static mindustry.Vars.*;
 
@@ -590,6 +592,55 @@ public class LogicBlock extends Block{
             }
         }
 
+        // Dummy method for testing only
+        public class DrawSelectInfo {
+            public boolean hasTag = false;
+            public boolean hasIcon = false;
+            public String tag;
+            public char iconTag;
+            public List<UnitInfo> controlledUnits = new ArrayList<>();
+        }
+        
+        // Dummy method for testing only
+        public class UnitInfo {
+            public float x, y, hitSize, rotation;
+            
+            public UnitInfo(float x, float y, float hitSize, float rotation) {
+                this.x = x;
+                this.y = y;
+                this.hitSize = hitSize;
+                this.rotation = rotation;
+            }
+        }
+
+        // Dummy method for testing only
+        public DrawSelectInfo getDrawSelectInfo() {
+            DrawSelectInfo info = new DrawSelectInfo();
+            
+            // Skip if not accessible
+            if(!accessible()) return info;
+            
+            // Collect controlled units
+            Groups.unit.each(u -> u.controller() instanceof LogicAI ai && ai.controller == this, unit -> {
+                info.controlledUnits.add(new UnitInfo(unit.x, unit.y, unit.hitSize, unit.rotation));
+            });
+            
+            // Add processor tag info
+            // Skipping renderer.pixelate and privileged check for testing
+            if(!(tag == null || tag.isEmpty())) {
+                info.hasTag = true;
+                info.tag = tag;
+            }
+            
+            // Add icon info
+            if(iconTag != 0) {
+                info.hasIcon = true;
+                info.iconTag = iconTag;
+            }
+            
+            return info;
+        }
+
         @Override
         public void drawSelect(){
             if(!accessible()) return;
@@ -597,7 +648,6 @@ public class LogicBlock extends Block{
             Groups.unit.each(u -> u.controller() instanceof LogicAI ai && ai.controller == this, unit -> {
                 Drawf.square(unit.x, unit.y, unit.hitSize, unit.rotation + 45);
             });
-
             //draw tag over processor (world processor only)
             if(!(renderer.pixelate || !privileged || tag == null || tag.isEmpty())){
                 Font font = Fonts.outline;
