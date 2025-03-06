@@ -10,6 +10,7 @@ dependencies {
     testImplementation arcModule("backends:backend-headless")
     testImplementation "org.json:json:20230618"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.7.1"
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.8.0'
 }
 
 jacoco {

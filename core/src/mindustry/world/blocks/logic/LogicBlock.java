@@ -8,7 +8,6 @@ import arc.graphics.g2d.*;
 import arc.math.*;
 import arc.math.geom.*;
 import arc.scene.ui.layout.*;
-import arc.struct.Bits;
 import arc.struct.*;
 import arc.util.*;
 import arc.util.io.*;
@@ -23,26 +22,28 @@ import mindustry.logic.*;
 import mindustry.ui.*;
 import mindustry.world.*;
 import mindustry.world.blocks.ConstructBlock.*;
+import mindustry.world.blocks.logic.LogicBlock.LogicBuild.UnitInfo;
 import mindustry.world.meta.*;
 
 import java.io.*;
 import java.util.zip.*;
+
 import java.util.List;
 import java.util.ArrayList;
 
 import static mindustry.Vars.*;
 
-public class LogicBlock extends Block{
+public class LogicBlock extends Block {
     private static final int maxByteLen = 1024 * 100;
     public static final int maxNameLength = 32;
 
     public int maxInstructionScale = 5;
     public int instructionsPerTick = 1;
-    //privileged only
+    // privileged only
     public int maxInstructionsPerTick = 40;
     public float range = 8 * 10;
 
-    public LogicBlock(String name){
+    public LogicBlock(String name) {
         super(name);
         update = true;
         solid = true;
@@ -51,52 +52,57 @@ public class LogicBlock extends Block{
         schematicPriority = 5;
         ignoreResizeConfig = true;
 
-        //universal, no real requirements
+        // universal, no real requirements
         envEnabled = Env.any;
 
         config(byte[].class, (LogicBuild build, byte[] data) -> {
-            if(!accessible()) return;
+            if (!accessible())
+                return;
 
             build.readCompressed(data, true);
         });
 
         config(String.class, (LogicBuild build, String data) -> {
-            if(!accessible() || !privileged) return;
+            if (!accessible() || !privileged)
+                return;
 
-            if(data != null && data.length() < maxNameLength){
+            if (data != null && data.length() < maxNameLength) {
                 build.tag = data;
             }
         });
 
         config(Character.class, (LogicBuild build, Character data) -> {
-            if(!accessible() || !privileged) return;
+            if (!accessible() || !privileged)
+                return;
 
             build.iconTag = data;
         });
 
         config(Integer.class, (LogicBuild entity, Integer pos) -> {
-            if(!accessible()) return;
+            if (!accessible())
+                return;
 
-            //if there is no valid link in the first place, nobody cares
-            if(!entity.validLink(world.build(pos))) return;
+            // if there is no valid link in the first place, nobody cares
+            if (!entity.validLink(world.build(pos)))
+                return;
             var lbuild = world.build(pos);
             int x = lbuild.tileX(), y = lbuild.tileY();
 
             LogicLink link = entity.links.find(l -> l.x == x && l.y == y);
             String bname = getLinkName(lbuild.block);
 
-            if(link != null){
+            if (link != null) {
                 link.active = !link.active;
-                //find a name when the base name differs (new block type)
-                if(!link.name.startsWith(bname)){
+                // find a name when the base name differs (new block type)
+                if (!link.name.startsWith(bname)) {
                     link.name = "";
                     link.name = entity.findLinkName(lbuild.block);
                 }
-                //disable when unlinking
-                if(!link.active && lbuild.block.autoResetEnabled && lbuild.lastDisabler == entity){
+                // disable when unlinking
+                if (!link.active && lbuild.block.autoResetEnabled && lbuild.lastDisabler == entity) {
                     lbuild.enabled = true;
                 }
-            }else{
+            } else {
                 entity.links.remove(l -> world.build(l.x, l.y) == lbuild);
                 entity.links.add(new LogicLink(x, y, entity.findLinkName(lbuild.block), true));
             }
@@ -106,54 +112,57 @@ public class LogicBlock extends Block{
     }
 
     @Override
-    public boolean checkForceDark(Tile tile){
+    public boolean checkForceDark(Tile tile) {
         return !accessible();
     }
 
-    public boolean accessible(){
-        return !privileged || state.rules.editor || state.playtestingMap != null || state.rules.allowEditWorldProcessors;
+    public boolean accessible() {
+        return !privileged || state.rules.editor || state.playtestingMap != null
+                || state.rules.allowEditWorldProcessors;
     }
 
     @Override
-    public boolean canBreak(Tile tile){
+    public boolean canBreak(Tile tile) {
         return accessible();
     }
 
-    public static String getLinkName(Block block){
+    public static String getLinkName(Block block) {
         String name = block.name;
-        if(name.contains("-")){
+        if (name.contains("-")) {
             String[] split = name.split("-");
-            //filter out 'large' at the end of block names
-            if(split.length >= 2 && (split[split.length - 1].equals("large") || Strings.canParseFloat(split[split.length - 1]))){
+            // filter out 'large' at the end of block names
+            if (split.length >= 2
+                    && (split[split.length - 1].equals("large") || Strings.canParseFloat(split[split.length - 1]))) {
                 name = split[split.length - 2];
-            }else{
+            } else {
                 name = split[split.length - 1];
             }
         }
         return name;
     }
 
-    public static byte[] compress(String code, Seq<LogicLink> links){
+    public static byte[] compress(String code, Seq<LogicLink> links) {
         return compress(code.getBytes(charset), links);
     }
 
-    public static byte[] compress(byte[] bytes, Seq<LogicLink> links){
-        try{
+    public static byte[] compress(byte[] bytes, Seq<LogicLink> links) {
+        try {
             var baos = new ByteArrayOutputStream();
             var stream = new DataOutputStream(new DeflaterOutputStream(baos));
 
-            //current version of config format
+            // current version of config format
             stream.write(1);
 
-            //write string data
+            // write string data
             stream.writeInt(bytes.length);
             stream.write(bytes);
 
             int actives = links.count(l -> l.active);
 
             stream.writeInt(actives);
-            for(LogicLink link : links){
-                if(!link.active) continue;
+            for (LogicLink link : links) {
+                if (!link.active)
+                    continue;
 
                 stream.writeUTF(link.name);
                 stream.writeShort(link.x);
@@ -163,39 +172,42 @@ public class LogicBlock extends Block{
             stream.close();
 
             return baos.toByteArray();
-        }catch(IOException e){
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
     @Override
-    public void setStats(){
+    public void setStats() {
         super.setStats();
 
-        if(!privileged){
+        if (!privileged) {
             stats.add(Stat.linkRange, range / 8, StatUnit.blocks);
             stats.add(Stat.instructions, instructionsPerTick * 60, StatUnit.perSecond);
         }
     }
 
     @Override
-    public void drawPlace(int x, int y, int rotation, boolean valid){
-        if(privileged) return;
+    public void drawPlace(int x, int y, int rotation, boolean valid) {
+        if (privileged)
+            return;
 
-        Drawf.circles(x*tilesize + offset, y*tilesize + offset, range);
+        Drawf.circles(x * tilesize + offset, y * tilesize + offset, range);
     }
 
     @Override
-    public Object pointConfig(Object config, Cons<Point2> transformer){
-        if(config instanceof byte[] data){
+    public Object pointConfig(Object config, Cons<Point2> transformer) {
+        if (config instanceof byte[] data) {
 
-            try(DataInputStream stream = new DataInputStream(new InflaterInputStream(new ByteArrayInputStream(data)))){
-                //discard version for now
+            try (DataInputStream stream = new DataInputStream(
+                    new InflaterInputStream(new ByteArrayInputStream(data)))) {
+                // discard version for now
                 stream.read();
 
                 int bytelen = stream.readInt();
 
-                if(bytelen > maxByteLen) throw new RuntimeException("Logic data too long or malformed! Length: " + bytelen);
+                if (bytelen > maxByteLen)
+                    throw new RuntimeException("Logic data too long or malformed! Length: " + bytelen);
 
                 byte[] bytes = new byte[bytelen];
                 stream.readFully(bytes);
@@ -204,11 +216,11 @@ public class LogicBlock extends Block{
 
                 Seq<LogicLink> links = new Seq<>();
 
-                for(int i = 0; i < total; i++){
+                for (int i = 0; i < total; i++) {
                     String name = stream.readUTF();
                     short x = stream.readShort(), y = stream.readShort();
 
-                    Tmp.p2.set((int)(offset / (tilesize/2)), (int)(offset / (tilesize/2)));
+                    Tmp.p2.set((int) (offset / (tilesize / 2)), (int) (offset / (tilesize / 2)));
                     transformer.get(Tmp.p1.set(x * 2, y * 2).sub(Tmp.p2));
                     Tmp.p1.add(Tmp.p2);
                     Tmp.p1.x /= 2;
@@ -217,43 +229,124 @@ public class LogicBlock extends Block{
                 }
 
                 return compress(bytes, links);
-            }catch(IOException e){
+            } catch (IOException e) {
                 Log.err(e);
             }
         }
         return config;
     }
 
-    public static class LogicLink{
+    public static class LogicLink {
         public boolean active = true, valid;
         public int x, y;
         public String name;
         public Building lastBuild;
 
-        public LogicLink(int x, int y, String name, boolean valid){
+        public LogicLink(int x, int y, String name, boolean valid) {
             this.x = x;
             this.y = y;
             this.name = name;
             this.valid = valid;
         }
 
-        public LogicLink copy(){
+        public LogicLink copy() {
             LogicLink out = new LogicLink(x, y, name, valid);
             out.active = active;
             return out;
         }
     }
 
-    public class LogicBuild extends Building implements Ranged{
+    /* Interfaces for testing drawSelect() to allow mocking */
+    // Interface for getting controlled unit globally
+    public interface UnitAccess {
+        void eachControlledUnit(Building controller, Cons<Unit> action);
+    }
+
+    // Interface for original drawing operations
+    public interface DrawOperations {
+        void drawUnitSquare(float x, float y, float size, float rotation);
+
+        void drawProcessorTag(String tag, float x, float y, float tilesize);
+
+        void drawProcessorIcon(char iconTag, float x, float y, float tilesize);
+    }
+
+    // Interface for renderer state
+    public interface RendererState {
+        boolean shouldDrawTag(boolean privileged, String tag);
+    }
+
+    public static class OriginalUnitAccess implements UnitAccess {
+        @Override
+        public void eachControlledUnit(Building controller, Cons<Unit> action) {
+            Groups.unit.each(u -> u.controller() instanceof LogicAI ai && ai.controller == controller, action);
+        }
+    }
+
+    public static class OriginalDrawOperations implements DrawOperations {
+        @Override
+        public void drawUnitSquare(float x, float y, float size, float rotation) {
+            Drawf.square(x, y, size, rotation + 45);
+        }
+
+        @Override
+        public void drawProcessorTag(String tag, float x, float y, float tilesize) {
+            if (tag == null || tag.isEmpty())
+                return;
+
+            Font font = Fonts.outline;
+            GlyphLayout l = Pools.obtain(GlyphLayout.class, GlyphLayout::new);
+            boolean ints = font.usesIntegerPositions();
+            font.getData().setScale(1 / 4f / Scl.scl(1f));
+            font.setUseIntegerPositions(false);
+
+            l.setText(font, tag, Color.white, 90f, Align.left, true);
+            float offset = 1f;
+
+            Draw.color();
+            font.setColor(1f, 1f, 1f, 0.5f);
+            font.draw(tag, x - l.width / 2f, y + tilesize + 2f - offset, 90f, Align.left, true);
+            font.setUseIntegerPositions(ints);
+
+            font.getData().setScale(1f);
+
+            Pools.free(l);
+        }
+
+        @Override
+        public void drawProcessorIcon(char iconTag, float x, float y, float tilesize) {
+            if (iconTag == 0)
+                return;
+
+            TextureRegion icon = Fonts.getLargeIcon(Fonts.unicodeToName(iconTag));
+            if (icon.found()) {
+                Draw.alpha(0.5f);
+                Draw.rect(icon, x, y, tilesize, tilesize / icon.ratio());
+                Draw.color();
+            }
+        }
+    }
+
+    public static class OriginalRendererState implements RendererState {
+        @Override
+        public boolean shouldDrawTag(boolean privileged, String tag) {
+            return !(renderer.pixelate || !privileged || tag == null || tag.isEmpty());
+        }
+    }
+
+    public class LogicBuild extends Building implements Ranged {
         /** logic "source code" as list of asm statements */
         public String code = "";
         public LExecutor executor = new LExecutor();
         public float accumulator = 0;
         public Seq<LogicLink> links = new Seq<>();
         public boolean checkedDuplicates = false;
-        //dynamic only for privileged processors
+        // dynamic only for privileged processors
         public int ipt = instructionsPerTick;
-        /** Display name, for convenience. This is currently only available for world processors. */
+        /**
+         * Display name, for convenience. This is currently only available for world
+         * processors.
+         */
         public @Nullable String tag;
         public char iconTag;
 
@@ -265,12 +358,14 @@ public class LogicBlock extends Block{
             executor.build = this;
         }
 
-        public void readCompressed(byte[] data, boolean relative){
-            try(DataInputStream stream = new DataInputStream(new InflaterInputStream(new ByteArrayInputStream(data)))){
+        public void readCompressed(byte[] data, boolean relative) {
+            try (DataInputStream stream = new DataInputStream(
+                    new InflaterInputStream(new ByteArrayInputStream(data)))) {
                 int version = stream.read();
 
                 int bytelen = stream.readInt();
-                if(bytelen > maxByteLen) throw new IOException("Malformed logic data! Length: " + bytelen);
+                if (bytelen > maxByteLen)
+                    throw new IOException("Malformed logic data! Length: " + bytelen);
                 byte[] bytes = new byte[bytelen];
                 stream.readFully(bytes);
 
@@ -278,27 +373,27 @@ public class LogicBlock extends Block{
 
                 int total = stream.readInt();
 
-                if(version == 0){
-                    //old version just had links, ignore those
+                if (version == 0) {
+                    // old version just had links, ignore those
 
-                    for(int i = 0; i < total; i++){
+                    for (int i = 0; i < total; i++) {
                         stream.readInt();
                     }
-                }else{
-                    for(int i = 0; i < total; i++){
+                } else {
+                    for (int i = 0; i < total; i++) {
                         String name = stream.readUTF();
                         short x = stream.readShort(), y = stream.readShort();
 
-                        if(relative){
+                        if (relative) {
                             x += tileX();
                             y += tileY();
                         }
 
                         Building build = world.build(x, y);
 
-                        if(build != null){
+                        if (build != null) {
                             String bestName = getLinkName(build.block);
-                            if(!name.startsWith(bestName)){
+                            if (!name.startsWith(bestName)) {
                                 name = findLinkName(build.block);
                             }
                         }
@@ -308,34 +403,34 @@ public class LogicBlock extends Block{
                 }
 
                 updateCode(new String(bytes, charset));
-            }catch(Exception ignored){
-                //invalid logic doesn't matter here
+            } catch (Exception ignored) {
+                // invalid logic doesn't matter here
             }
         }
 
-        public String findLinkName(Block block){
+        public String findLinkName(Block block) {
             String bname = getLinkName(block);
             Bits taken = new Bits(links.size);
             int max = 1;
 
-            for(LogicLink others : links){
-                if(others.name.startsWith(bname)){
+            for (LogicLink others : links) {
+                if (others.name.startsWith(bname)) {
 
                     String num = others.name.substring(bname.length());
-                    try{
+                    try {
                         int val = Integer.parseInt(num);
                         taken.set(val);
                         max = Math.max(val, max);
-                    }catch(NumberFormatException ignored){
-                        //ignore failed parsing, it isn't relevant
+                    } catch (NumberFormatException ignored) {
+                        // ignore failed parsing, it isn't relevant
                     }
                 }
             }
 
             int outnum = 0;
 
-            for(int i = 1; i < max + 2; i++){
-                if(!taken.get(i)){
+            for (int i = 1; i < max + 2; i++) {
+                if (!taken.get(i)) {
                     outnum = i;
                     break;
                 }
@@ -344,35 +439,36 @@ public class LogicBlock extends Block{
             return bname + outnum;
         }
 
-        public void updateCode(String str){
+        public void updateCode(String str) {
             updateCode(str, false, null);
         }
 
-        public void updateCode(String str, boolean keep, Cons<LAssembler> assemble){
-            if(str != null){
+        public void updateCode(String str, boolean keep, Cons<LAssembler> assemble) {
+            if (str != null) {
                 code = str;
 
-                try{
-                    //create assembler to store extra variables
+                try {
+                    // create assembler to store extra variables
                     LAssembler asm = LAssembler.assemble(str, privileged);
 
-                    //store connections
-                    for(LogicLink link : links){
-                        if(link.active && (link.valid = validLink(world.build(link.x, link.y)))){
+                    // store connections
+                    for (LogicLink link : links) {
+                        if (link.active && (link.valid = validLink(world.build(link.x, link.y)))) {
                             asm.putConst(link.name, world.build(link.x, link.y));
                         }
                     }
 
-                    //store link objects
+                    // store link objects
                     executor.links = new Building[links.count(l -> l.valid && l.active)];
                     executor.linkIds.clear();
 
                     int index = 0;
-                    for(LogicLink link : links){
-                        if(link.active && link.valid){
+                    for (LogicLink link : links) {
+                        if (link.active && link.valid) {
                             Building build = world.build(link.x, link.y);
-                            executor.links[index ++] = build;
-                            if(build != null) executor.linkIds.add(build.id);
+                            executor.links[index++] = build;
+                            if (build != null)
+                                executor.linkIds.add(build.id);
                         }
                     }
 
@@ -381,13 +477,13 @@ public class LogicBlock extends Block{
 
                     Object oldUnit = null;
 
-                    if(keep){
+                    if (keep) {
                         oldUnit = executor.unit.objval;
-                        //store any older variables
-                        for(LVar var : executor.vars){
-                            if(!var.constant){
+                        // store any older variables
+                        for (LVar var : executor.vars) {
+                            if (!var.constant) {
                                 LVar dest = asm.getVar(var.name);
-                                if(dest != null && !dest.constant){
+                                if (dest != null && !dest.constant) {
                                     dest.isobj = var.isobj;
                                     dest.objval = var.objval;
                                     dest.numval = var.numval;
@@ -396,11 +492,12 @@ public class LogicBlock extends Block{
                         }
                     }
 
-                    //inject any extra variables
-                    if(assemble != null){
+                    // inject any extra variables
+                    if (assemble != null) {
                         assemble.get(asm);
 
-                        if(oldUnit == null && asm.getVar("@unit") != null && asm.getVar("@unit").objval instanceof Unit u){
+                        if (oldUnit == null && asm.getVar("@unit") != null
+                                && asm.getVar("@unit").objval instanceof Unit u) {
                             oldUnit = u;
                         }
                     }
@@ -412,76 +509,76 @@ public class LogicBlock extends Block{
                     executor.load(asm);
                     executor.unit.objval = oldUnit;
                     executor.unit.isobj = true;
-                }catch(Exception e){
-                    //handle malformed code and replace it with nothing
+                } catch (Exception e) {
+                    // handle malformed code and replace it with nothing
                     executor.load(LAssembler.assemble(code = "", privileged));
                 }
             }
         }
 
-        //editor-only processors cannot be damaged or destroyed
+        // editor-only processors cannot be damaged or destroyed
         @Override
-        public boolean collide(Bullet other){
+        public boolean collide(Bullet other) {
             return !privileged;
         }
 
         @Override
-        public boolean displayable(){
+        public boolean displayable() {
             return accessible();
         }
 
         @Override
-        public void damage(float damage){
-            if(!privileged){
+        public void damage(float damage) {
+            if (!privileged) {
                 super.damage(damage);
             }
         }
 
         @Override
-        public void removeFromProximity(){
+        public void removeFromProximity() {
             super.removeFromProximity();
 
-            for(var link : executor.links){
-                if(!link.enabled && link.lastDisabler == this){
+            for (var link : executor.links) {
+                if (!link.enabled && link.lastDisabler == this) {
                     link.enabled = true;
                 }
             }
         }
 
         @Override
-        public Cursor getCursor(){
+        public Cursor getCursor() {
             return !accessible() ? SystemCursor.arrow : super.getCursor();
         }
 
-        //logic blocks cause write problems when picked up
+        // logic blocks cause write problems when picked up
         @Override
-        public boolean canPickup(){
+        public boolean canPickup() {
             return false;
         }
 
         @Override
-        public float range(){
+        public float range() {
             return range;
         }
 
         @Override
-        public void updateTile(){
-            //load up code from read()
-            if(loadBlock != null){
+        public void updateTile() {
+            // load up code from read()
+            if (loadBlock != null) {
                 loadBlock.run();
                 loadBlock = null;
             }
 
             executor.team = team;
 
-            if(!checkedDuplicates){
+            if (!checkedDuplicates) {
                 checkedDuplicates = true;
                 var removal = new IntSet();
                 var removeLinks = new Seq<LogicLink>();
-                for(var link : links){
+                for (var link : links) {
                     var build = world.build(link.x, link.y);
-                    if(build != null){
-                        if(!removal.add(build.id)){
+                    if (build != null) {
+                        if (!removal.add(build.id)) {
                             removeLinks.add(link);
                         }
                     }
@@ -489,36 +586,38 @@ public class LogicBlock extends Block{
                 links.removeAll(removeLinks);
             }
 
-            //check for previously invalid links to add after configuration
+            // check for previously invalid links to add after configuration
             boolean changed = false, updates = true;
 
-            while(updates){
+            while (updates) {
                 updates = false;
 
-                for(int i = 0; i < links.size; i++){
+                for (int i = 0; i < links.size; i++) {
                     LogicLink l = links.get(i);
 
-                    if(!l.active) continue;
+                    if (!l.active)
+                        continue;
 
                     var cur = world.build(l.x, l.y);
 
                     boolean valid = validLink(cur);
-                    if(l.lastBuild == null) l.lastBuild = cur;
-                    if(valid != l.valid || l.lastBuild != cur){
+                    if (l.lastBuild == null)
+                        l.lastBuild = cur;
+                    if (valid != l.valid || l.lastBuild != cur) {
                         l.lastBuild = cur;
                         changed = true;
                         l.valid = valid;
-                        if(valid){
+                        if (valid) {
 
-                            //this prevents conflicts
+                            // this prevents conflicts
                             l.name = "";
-                            //finds a new matching name after toggling
+                            // finds a new matching name after toggling
                             l.name = findLinkName(cur.block);
 
-                            //remove redundant links
+                            // remove redundant links
                             links.removeAll(o -> world.build(o.x, o.y) == cur && o != l);
 
-                            //break to prevent concurrent modification
+                            // break to prevent concurrent modification
                             updates = true;
                             break;
                         }
@@ -526,25 +625,27 @@ public class LogicBlock extends Block{
                 }
             }
 
-            if(changed){
+            if (changed) {
                 updateCode(code, true, null);
             }
 
-            if(!privileged){
+            if (!privileged) {
                 ipt = instructionsPerTick;
             }
 
-            if(state.rules.disableWorldProcessors && privileged) return;
+            if (state.rules.disableWorldProcessors && privileged)
+                return;
 
-            if(enabled && executor.initialized()){
+            if (enabled && executor.initialized()) {
                 accumulator += edelta() * ipt;
 
-                if(accumulator > maxInstructionScale * ipt) accumulator = maxInstructionScale * ipt;
+                if (accumulator > maxInstructionScale * ipt)
+                    accumulator = maxInstructionScale * ipt;
 
-                for(int i = 0; i < (int)accumulator; i++){
+                for (int i = 0; i < (int) accumulator; i++) {
                     executor.runOnce();
-                    accumulator --;
-                    if(executor.yield){
+                    accumulator--;
+                    if (executor.yield) {
                         executor.yield = false;
                         break;
                     }
@@ -553,13 +654,13 @@ public class LogicBlock extends Block{
         }
 
         @Override
-        public byte[] config(){
+        public byte[] config() {
             return compress(code, relativeConnections());
         }
 
-        public Seq<LogicLink> relativeConnections(){
+        public Seq<LogicLink> relativeConnections() {
             var copy = new Seq<LogicLink>(links.size);
-            for(var l : links){
+            for (var l : links) {
                 var c = l.copy();
                 c.x -= tileX();
                 c.y -= tileY();
@@ -569,24 +670,24 @@ public class LogicBlock extends Block{
         }
 
         @Override
-        public void drawConfigure(){
+        public void drawConfigure() {
             super.drawConfigure();
 
-            if(!privileged){
+            if (!privileged) {
                 Drawf.circles(x, y, range);
             }
 
-            for(LogicLink l : links){
+            for (LogicLink l : links) {
                 Building build = world.build(l.x, l.y);
-                if(l.active && validLink(build)){
+                if (l.active && validLink(build)) {
                     Drawf.square(build.x, build.y, build.block.size * tilesize / 2f + 1f, Pal.place);
                 }
             }
 
-            //draw top text on separate layer
-            for(LogicLink l : links){
+            // draw top text on separate layer
+            for (LogicLink l : links) {
                 Building build = world.build(l.x, l.y);
-                if(l.active && validLink(build)){
+                if (l.active && validLink(build)) {
                     build.block.drawPlaceText(l.name, build.tileX(), build.tileY(), true);
                 }
             }
@@ -600,11 +701,11 @@ public class LogicBlock extends Block{
             public char iconTag;
             public List<UnitInfo> controlledUnits = new ArrayList<>();
         }
-        
+
         // Dummy method for testing only
         public class UnitInfo {
             public float x, y, hitSize, rotation;
-            
+
             public UnitInfo(float x, float y, float hitSize, float rotation) {
                 this.x = x;
                 this.y = y;
@@ -616,109 +717,150 @@ public class LogicBlock extends Block{
         // Dummy method for testing only
         public DrawSelectInfo getDrawSelectInfo() {
             DrawSelectInfo info = new DrawSelectInfo();
-            
+
             // Skip if not accessible
-            if(!accessible()) return info;
-            
+            if (!accessible())
+                return info;
+
             // Collect controlled units
             Groups.unit.each(u -> u.controller() instanceof LogicAI ai && ai.controller == this, unit -> {
                 info.controlledUnits.add(new UnitInfo(unit.x, unit.y, unit.hitSize, unit.rotation));
             });
-            
+
             // Add processor tag info
             // Skipping renderer.pixelate and privileged check for testing
-            if(!(tag == null || tag.isEmpty())) {
+            if (!(tag == null || tag.isEmpty())) {
                 info.hasTag = true;
                 info.tag = tag;
             }
-            
+
             // Add icon info
-            if(iconTag != 0) {
+            if (iconTag != 0) {
                 info.hasIcon = true;
                 info.iconTag = iconTag;
             }
-            
+
             return info;
         }
 
+        /* New drawSelect() method */
         @Override
-        public void drawSelect(){
-            if(!accessible()) return;
+        public void drawSelect() {
+            drawSelect(new LogicBlock.OriginalUnitAccess(), new LogicBlock.OriginalDrawOperations(),
+                    new LogicBlock.OriginalRendererState());
+        }
 
-            Groups.unit.each(u -> u.controller() instanceof LogicAI ai && ai.controller == this, unit -> {
-                Drawf.square(unit.x, unit.y, unit.hitSize, unit.rotation + 45);
+        public void drawSelect(UnitAccess unitAccess, DrawOperations drawOps, RendererState rendererState) {
+            if (!accessible())
+                return;
+
+            // Draw controlled units
+            drawControlledUnits(unitAccess, drawOps);
+
+            // Draw processor tag
+            if (rendererState.shouldDrawTag(privileged, tag)) {
+                drawOps.drawProcessorTag(tag, x, y, tilesize);
+            }
+
+            // Draw processor icon
+            if (iconTag != 0) {
+                drawOps.drawProcessorIcon(iconTag, x, y, tilesize);
+            }
+        }
+
+        private void drawControlledUnits(UnitAccess unitAccess, DrawOperations drawOps) {
+            unitAccess.eachControlledUnit(this, unit -> {
+                drawOps.drawUnitSquare(unit.x, unit.y, unit.hitSize, unit.rotation);
             });
-            //draw tag over processor (world processor only)
-            if(!(renderer.pixelate || !privileged || tag == null || tag.isEmpty())){
-                Font font = Fonts.outline;
-                GlyphLayout l = Pools.obtain(GlyphLayout.class, GlyphLayout::new);
-                boolean ints = font.usesIntegerPositions();
-                font.getData().setScale(1 / 4f / Scl.scl(1f));
-                font.setUseIntegerPositions(false);
-
-                l.setText(font, tag, Color.white, 90f, Align.left, true);
-                float offset = 1f;
-
-                //Draw.color(0f, 0f, 0f, 0.1f);
-                //Fill.rect(x, y + tilesize/2f - l.height/2f - offset, l.width + offset*2f, l.height + offset*2f);
-                Draw.color();
-                font.setColor(1f, 1f, 1f, 0.5f);
-                font.draw(tag, x - l.width/2f, y + tilesize + 2f - offset, 90f, Align.left, true);
-                font.setUseIntegerPositions(ints);
-
-                font.getData().setScale(1f);
-
-                Pools.free(l);
-            }
-
-            if(iconTag != 0){
-                TextureRegion icon = Fonts.getLargeIcon(Fonts.unicodeToName(iconTag));
-                if(icon.found()){
-                    Draw.alpha(0.5f);
-
-                    Draw.rect(icon, x, y, tilesize, tilesize / icon.ratio());
-
-                    Draw.color();
-                }
-            }
         }
 
-        public boolean validLink(Building other){
-            return other != null && other.isValid() && (privileged || (!other.block.privileged && other.team == team && other.within(this, range + other.block.size*tilesize/2f))) && !(other instanceof ConstructBuild);
+        /* Original drawSelect() */
+        // @Override
+        // public void drawSelect(){
+        // if(!accessible()) return;
+
+        // Groups.unit.each(u -> u.controller() instanceof LogicAI ai && ai.controller
+        // == this, unit -> {
+        // Drawf.square(unit.x, unit.y, unit.hitSize, unit.rotation + 45);
+        // });
+        // //draw tag over processor (world processor only)
+        // if(!(renderer.pixelate || !privileged || tag == null || tag.isEmpty())){
+        // Font font = Fonts.outline;
+        // GlyphLayout l = Pools.obtain(GlyphLayout.class, GlyphLayout::new);
+        // boolean ints = font.usesIntegerPositions();
+        // font.getData().setScale(1 / 4f / Scl.scl(1f));
+        // font.setUseIntegerPositions(false);
+
+        // l.setText(font, tag, Color.white, 90f, Align.left, true);
+        // float offset = 1f;
+
+        // //Draw.color(0f, 0f, 0f, 0.1f);
+        // //Fill.rect(x, y + tilesize/2f - l.height/2f - offset, l.width + offset*2f,
+        // l.height + offset*2f);
+        // Draw.color();
+        // font.setColor(1f, 1f, 1f, 0.5f);
+        // font.draw(tag, x - l.width/2f, y + tilesize + 2f - offset, 90f, Align.left,
+        // true);
+        // font.setUseIntegerPositions(ints);
+
+        // font.getData().setScale(1f);
+
+        // Pools.free(l);
+        // }
+
+        // if(iconTag != 0){
+        // TextureRegion icon = Fonts.getLargeIcon(Fonts.unicodeToName(iconTag));
+        // if(icon.found()){
+        // Draw.alpha(0.5f);
+
+        // Draw.rect(icon, x, y, tilesize, tilesize / icon.ratio());
+
+        // Draw.color();
+        // }
+        // }
+        // }
+
+        public boolean validLink(Building other) {
+            return other != null && other.isValid()
+                    && (privileged || (!other.block.privileged && other.team == team
+                            && other.within(this, range + other.block.size * tilesize / 2f)))
+                    && !(other instanceof ConstructBuild);
         }
 
         @Override
-        public boolean shouldShowConfigure(Player player){
+        public boolean shouldShowConfigure(Player player) {
             return accessible();
         }
 
         @Override
-        public void buildConfiguration(Table table){
+        public void buildConfiguration(Table table) {
             table.button(Icon.pencil, Styles.cleari, this::showEditDialog).size(40);
         }
 
-        public void showEditDialog(){
+        public void showEditDialog() {
             showEditDialog(false);
         }
 
-        public void showEditDialog(boolean forceEditor){
+        public void showEditDialog(boolean forceEditor) {
             ui.logic.show(code, executor, privileged, code -> {
                 boolean prev = state.rules.editor;
-                //this is a hack to allow configuration to work correctly in the editor for privileged processors
-                if(forceEditor) state.rules.editor = true;
+                // this is a hack to allow configuration to work correctly in the editor for
+                // privileged processors
+                if (forceEditor)
+                    state.rules.editor = true;
                 configure(compress(code, relativeConnections()));
                 state.rules.editor = prev;
             });
         }
 
         @Override
-        public boolean onConfigureBuildTapped(Building other){
-            if(this == other || !accessible()){
+        public boolean onConfigureBuildTapped(Building other) {
+            if (this == other || !accessible()) {
                 deselect();
                 return false;
             }
 
-            if(validLink(other)){
+            if (validLink(other)) {
                 configure(other.pos());
                 return false;
             }
@@ -727,42 +869,45 @@ public class LogicBlock extends Block{
         }
 
         @Override
-        public byte version(){
+        public byte version() {
             return 3;
         }
 
         @Override
-        public void write(Writes write){
+        public void write(Writes write) {
             super.write(write);
 
             byte[] compressed = compress(code, links);
             write.i(compressed.length);
             write.b(compressed);
 
-            //write only the non-constant variables
-            int count = Structs.count(executor.vars, v -> (!v.constant || v == executor.unit) && !(v.isobj && v.objval == null));
+            // write only the non-constant variables
+            int count = Structs.count(executor.vars,
+                    v -> (!v.constant || v == executor.unit) && !(v.isobj && v.objval == null));
 
             write.i(count);
-            for(int i = 0; i < executor.vars.length; i++){
+            for (int i = 0; i < executor.vars.length; i++) {
                 LVar v = executor.vars[i];
 
-                //null is the default variable value, so waste no time serializing that
-                if(v.isobj && v.objval == null) continue;
+                // null is the default variable value, so waste no time serializing that
+                if (v.isobj && v.objval == null)
+                    continue;
 
-                //skip constants
-                if(v.constant && v != executor.unit) continue;
+                // skip constants
+                if (v.constant && v != executor.unit)
+                    continue;
 
-                //write the name and the object value
+                // write the name and the object value
                 write.str(v.name);
 
                 Object value = v.isobj ? v.objval : v.numval;
                 TypeIO.writeObject(write, value);
             }
 
-            //no memory
+            // no memory
             write.i(0);
 
-            if(privileged){
+            if (privileged) {
                 write.s(Mathf.clamp(ipt, 1, maxInstructionsPerTick));
             }
 
@@ -771,30 +916,30 @@ public class LogicBlock extends Block{
         }
 
         @Override
-        public void read(Reads read, byte revision){
+        public void read(Reads read, byte revision) {
             super.read(read, revision);
 
-            if(revision >= 1){
+            if (revision >= 1) {
                 int compl = read.i();
                 byte[] bytes = new byte[compl];
                 read.b(bytes);
                 readCompressed(bytes, false);
-            }else{
+            } else {
                 code = read.str();
                 links.clear();
                 short total = read.s();
-                for(int i = 0; i < total; i++){
+                for (int i = 0; i < total; i++) {
                     read.i();
                 }
             }
 
             int varcount = read.i();
 
-            //variables need to be temporarily stored in an array until they can be used
+            // variables need to be temporarily stored in an array until they can be used
             String[] names = new String[varcount];
             Object[] values = new Object[varcount];
 
-            for(int i = 0; i < varcount; i++){
+            for (int i = 0; i < varcount; i++) {
                 String name = read.str();
                 Object value = TypeIO.readObjectBoxed(read, true);
 
@@ -803,21 +948,22 @@ public class LogicBlock extends Block{
             }
 
             int memory = read.i();
-            //skip memory, it isn't used anymore
+            // skip memory, it isn't used anymore
             read.skip(memory * 8);
 
             loadBlock = () -> updateCode(code, false, asm -> {
-                //load up the variables that were stored
-                for(int i = 0; i < varcount; i++){
+                // load up the variables that were stored
+                for (int i = 0; i < varcount; i++) {
                     LVar var = asm.getVar(names[i]);
-                    if(var != null && (!var.constant || var.name.equals("@unit"))){
+                    if (var != null && (!var.constant || var.name.equals("@unit"))) {
                         var value = values[i];
-                        if(value instanceof Boxed<?> boxed) value = boxed.unbox();
+                        if (value instanceof Boxed<?> boxed)
+                            value = boxed.unbox();
 
-                        if(value instanceof Number num){
+                        if (value instanceof Number num) {
                             var.numval = num.doubleValue();
                             var.isobj = false;
-                        }else{
+                        } else {
                             var.objval = value;
                             var.isobj = true;
                         }
@@ -825,13 +971,13 @@ public class LogicBlock extends Block{
                 }
             });
 
-            if(privileged && revision >= 2){
+            if (privileged && revision >= 2) {
                 ipt = Mathf.clamp(read.s(), 1, maxInstructionsPerTick);
             }
 
-            if(revision >= 3){
+            if (revision >= 3) {
                 tag = TypeIO.readString(read);
-                iconTag = (char)read.us();
+                iconTag = (char) read.us();
             }
 
         }

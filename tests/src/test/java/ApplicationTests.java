@@ -7,6 +7,7 @@ import arc.util.*;
 import arc.util.io.*;
 import arc.util.serialization.*;
 import arc.util.serialization.JsonValue.*;
+import arc.func.*;
 import mindustry.*;
 import mindustry.content.*;
 import mindustry.core.*;
@@ -44,34 +45,39 @@ import static mindustry.Vars.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.DynamicTest.*;
+import static org.mockito.Mockito.*;
+import org.mockito.ArgumentCaptor;
+import static org.mockito.BDDMockito.*;
+import org.mockito.InOrder;
+import org.mockito.MockedStatic;
 
-
-public class ApplicationTests{
+public class ApplicationTests {
     static Map testMap;
     static boolean initialized;
-    //core/assets
+    // core/assets
     static final Fi testDataFolder = new Fi("../../tests/build/test_data");
 
     @BeforeAll
-    public static void launchApplication(){
+    public static void launchApplication() {
         launchApplication(true);
     }
 
-    public static void launchApplication(boolean clear){
-        //only gets called once
-        if(initialized) return;
+    public static void launchApplication(boolean clear) {
+        // only gets called once
+        if (initialized)
+            return;
         initialized = true;
 
-        try{
-            boolean[] begins = {false};
-            Throwable[] exceptionThrown = {null};
+        try {
+            boolean[] begins = { false };
+            Throwable[] exceptionThrown = { null };
             Log.useColors = false;
 
-            ApplicationCore core = new ApplicationCore(){
+            ApplicationCore core = new ApplicationCore() {
                 @Override
-                public void setup(){
-                    //clear older data
-                    if(clear){
+                public void setup() {
+                    // clear older data
+                    if (clear) {
                         ApplicationTests.testDataFolder.deleteDirectory();
                     }
 
@@ -80,10 +86,10 @@ public class ApplicationTests{
                     net = new Net(null);
                     tree = new FileTree();
                     Vars.init();
-                    world = new World(){
+                    world = new World() {
                         @Override
-                        public float getDarkness(int x, int y){
-                            //for world borders
+                        public float getDarkness(int x, int y) {
+                            // for world borders
                             return 0;
                         }
                     };
@@ -98,11 +104,12 @@ public class ApplicationTests{
 
                     mods.eachClass(Mod::init);
 
-                    if(mods.hasContentErrors()){
-                        for(LoadedMod mod : mods.list()){
-                            if(mod.hasContentErrors()){
-                                for(Content cont : mod.erroredContent){
-                                    throw new RuntimeException("error in file: " + cont.minfo.sourceFile.path(), cont.minfo.baseError);
+                    if (mods.hasContentErrors()) {
+                        for (LoadedMod mod : mods.list()) {
+                            if (mod.hasContentErrors()) {
+                                for (Content cont : mod.erroredContent) {
+                                    throw new RuntimeException("error in file: " + cont.minfo.sourceFile.path(),
+                                            cont.minfo.baseError);
                                 }
                             }
                         }
@@ -111,7 +118,7 @@ public class ApplicationTests{
                 }
 
                 @Override
-                public void init(){
+                public void init() {
                     super.init();
                     begins[0] = true;
                     testMap = maps.loadInternalMap("groundZero");
@@ -121,8 +128,8 @@ public class ApplicationTests{
 
             new HeadlessApplication(core, throwable -> exceptionThrown[0] = throwable);
 
-            while(!begins[0]){
-                if(exceptionThrown[0] != null){
+            while (!begins[0]) {
+                if (exceptionThrown[0] != null) {
                     fail(exceptionThrown[0]);
                 }
                 Thread.sleep(10);
@@ -130,13 +137,13 @@ public class ApplicationTests{
 
             Block block = content.getByName(ContentType.block, "build2");
             assertEquals("build2", block == null ? null : block.name, "2x2 construct block doesn't exist?");
-        }catch(Throwable r){
+        } catch (Throwable r) {
             fail(r);
         }
     }
 
     @BeforeEach
-    void resetWorld(){
+    void resetWorld() {
         Time.setDeltaProvider(() -> 1f);
         logic.reset();
         state.set(State.menu);
@@ -145,12 +152,12 @@ public class ApplicationTests{
     @ParameterizedTest
     @NullSource
     @ValueSource(strings = {
-    "a",
-    "asd asd asd asd asdagagasasjakbgeah;jwrej 23424234",
-    "这个服务器可以用自己的语言说话",
-    "\uD83D\uDEA3"
+            "a",
+            "asd asd asd asd asdagagasasjakbgeah;jwrej 23424234",
+            "这个服务器可以用自己的语言说话",
+            "\uD83D\uDEA3"
     })
-    void writeStringTest(String string){
+    void writeStringTest(String string) {
         ByteBuffer buffer = ByteBuffer.allocate(500);
         TypeIO.writeString(buffer, string);
         buffer.position(0);
@@ -159,7 +166,8 @@ public class ApplicationTests{
         ByteArrayOutputStream ba = new ByteArrayOutputStream();
 
         TypeIO.writeString(new Writes(new DataOutputStream(ba)), string);
-        assertEquals(TypeIO.readString(new Reads(new DataInputStream(new ByteArrayInputStream(ba.toByteArray())))), string);
+        assertEquals(TypeIO.readString(new Reads(new DataInputStream(new ByteArrayInputStream(ba.toByteArray())))),
+                string);
 
         SendChatMessageCallPacket pack = new SendChatMessageCallPacket();
         pack.message = string;
@@ -198,7 +206,7 @@ public class ApplicationTests{
     }
 
     @Test
-    void writeRules(){
+    void writeRules() {
         ByteBuffer buffer = ByteBuffer.allocate(1000);
 
         Rules rules = new Rules();
@@ -214,7 +222,7 @@ public class ApplicationTests{
     }
 
     @Test
-    void writeRules2(){
+    void writeRules2() {
         Rules rules = new Rules();
         rules.attackMode = true;
         rules.tags.put("blah", "bleh");
@@ -227,47 +235,48 @@ public class ApplicationTests{
         assertEquals(rules.attackMode, res.attackMode);
         assertEquals(rules.tags.get("blah"), res.tags.get("blah"));
 
-        String str2 = JsonIO.write(new Rules(){{
-            attackMode = true;
-        }});
+        String str2 = JsonIO.write(new Rules() {
+            {
+                attackMode = true;
+            }
+        });
     }
 
     @Test
-    void serverListJson(){
-        String[] files = {"servers_v6.json", "servers_v7.json"};
+    void serverListJson() {
+        String[] files = { "servers_v6.json", "servers_v7.json" };
 
-
-        for(String file : files){
-            try{
+        for (String file : files) {
+            try {
                 String str = Core.files.absolute("./../../" + file).readString();
                 assertEquals(ValueType.array, new JsonReader().parse(str).type());
                 assertTrue(Jval.read(str).isArray());
                 JSONArray array = new JSONArray(str);
                 assertTrue(array.length() > 0);
-            }catch(Exception e){
+            } catch (Exception e) {
                 fail("Failed to parse " + file, e);
             }
         }
     }
 
     @Test
-    void initialization(){
+    void initialization() {
         assertNotNull(logic);
         assertNotNull(world);
         assertTrue(content.getContentMap().length > 0);
     }
 
     @Test
-    void playMap(){
+    void playMap() {
         world.loadMap(testMap);
     }
 
     @Test
-    void spawnWaves(){
+    void spawnWaves() {
         world.loadMap(testMap);
         assertTrue(spawner.countSpawns() > 0, "No spawns present.");
         logic.runWave();
-        //force trigger delayed spawns
+        // force trigger delayed spawns
         Time.setDeltaProvider(() -> 1000f);
         Time.update();
         Time.update();
@@ -276,7 +285,7 @@ public class ApplicationTests{
     }
 
     @Test
-    void createMap(){
+    void createMap() {
         Tiles tiles = world.resize(8, 8);
 
         world.beginMapLoad();
@@ -285,14 +294,14 @@ public class ApplicationTests{
     }
 
     @Test
-    void multiblock(){
+    void multiblock() {
         createMap();
         int bx = 4;
         int by = 4;
         world.tile(bx, by).setBlock(Blocks.coreShard, Team.sharded, 0);
         assertEquals(world.tile(bx, by).team(), Team.sharded);
-        for(int x = bx - 1; x <= bx + 1; x++){
-            for(int y = by - 1; y <= by + 1; y++){
+        for (int x = bx - 1; x <= bx + 1; x++) {
+            for (int y = by - 1; y <= by + 1; y++) {
                 assertEquals(world.tile(x, y).block(), Blocks.coreShard);
                 assertEquals(world.tile(x, y).build, world.tile(bx, by).build);
             }
@@ -300,7 +309,7 @@ public class ApplicationTests{
     }
 
     @Test
-    void blockInventories(){
+    void blockInventories() {
         multiblock();
         Tile tile = world.tile(4, 4);
         tile.build.items.add(Items.coal, 5);
@@ -312,8 +321,8 @@ public class ApplicationTests{
     }
 
     @Test
-    void timers(){
-        boolean[] ran = {false};
+    void timers() {
+        boolean[] ran = { false };
         Time.run(1.9999f, () -> ran[0] = true);
 
         Time.update();
@@ -323,10 +332,10 @@ public class ApplicationTests{
     }
 
     @Test
-    void manyTimers(){
+    void manyTimers() {
         int runs = 100000;
-        int[] total = {0};
-        for(int i = 0; i < runs; i++){
+        int[] total = { 0 };
+        for (int i = 0; i < runs; i++) {
             Time.run(0.999f, () -> total[0]++);
         }
         assertEquals(0, total[0]);
@@ -335,33 +344,33 @@ public class ApplicationTests{
     }
 
     @Test
-    void longTimers(){
+    void longTimers() {
         Time.setDeltaProvider(() -> Float.MAX_VALUE);
         Time.update();
         int steps = 100;
         float delay = 100000f;
         Time.setDeltaProvider(() -> delay / steps + 0.01f);
         int runs = 100000;
-        int[] total = {0};
-        for(int i = 0; i < runs; i++){
+        int[] total = { 0 };
+        for (int i = 0; i < runs; i++) {
             Time.run(delay, () -> total[0]++);
         }
         assertEquals(0, total[0]);
-        for(int i = 0; i < steps; i++){
+        for (int i = 0; i < steps; i++) {
             Time.update();
         }
         assertEquals(runs, total[0]);
     }
 
     @Test
-    void save(){
+    void save() {
         world.loadMap(testMap);
         assertTrue(state.teams.playerCores().size > 0);
         SaveIO.save(saveDirectory.child("0.msav"));
     }
 
     @Test
-    void saveLoad(){
+    void saveLoad() {
         world.loadMap(testMap);
         Map map = state.map;
 
@@ -383,17 +392,17 @@ public class ApplicationTests{
         assertTrue(state.teams.playerCores().size > 0);
     }
 
-    void updateBlocks(int times){
-        for(Tile tile : world.tiles){
-            if(tile.build != null && tile.isCenter()){
+    void updateBlocks(int times) {
+        for (Tile tile : world.tiles) {
+            if (tile.build != null && tile.isCenter()) {
                 tile.build.updateProximity();
             }
         }
 
-        for(int i = 0; i < times; i++){
+        for (int i = 0; i < times; i++) {
             Time.update();
-            for(Tile tile : world.tiles){
-                if(tile.build != null && tile.isCenter()){
+            for (Tile tile : world.tiles) {
+                if (tile.build != null && tile.isCenter()) {
                     tile.build.update();
                 }
             }
@@ -401,7 +410,7 @@ public class ApplicationTests{
     }
 
     @Test
-    void liquidOutput(){
+    void liquidOutput() {
         world.loadMap(testMap);
         state.set(State.playing);
         state.rules.limitMapArea = false;
@@ -417,14 +426,14 @@ public class ApplicationTests{
         assertTrue(world.tile(2, 1).build.liquids.current() == Liquids.water);
     }
 
-
     @Test
-    void liquidJunctionOutput(){
+    void liquidJunctionOutput() {
         world.loadMap(testMap);
         state.set(State.playing);
         state.rules.limitMapArea = false;
 
-        Tile source = world.rawTile(0, 0), tank = world.rawTile(1, 4), junction = world.rawTile(0, 1), conduit = world.rawTile(0, 2);
+        Tile source = world.rawTile(0, 0), tank = world.rawTile(1, 4), junction = world.rawTile(0, 1),
+                conduit = world.rawTile(0, 2);
 
         source.setBlock(Blocks.liquidSource, Team.sharded);
         source.build.configureAny(Liquids.water);
@@ -446,15 +455,15 @@ public class ApplicationTests{
         world.loadMap(testMap);
         state.set(State.playing);
         state.rules.limitMapArea = false;
-        Tile source = world.rawTile(4,0), router = world.rawTile(4, 2), conduitUp1 = world.rawTile(4,1),
-        conduitLeft = world.rawTile(3,2), conduitUp2 = world.rawTile(4, 3), conduitRight = world.rawTile(5, 2),
-        leftTank = world.rawTile(1, 2), topTank = world.rawTile(4,5), rightTank = world.rawTile(7, 2);
+        Tile source = world.rawTile(4, 0), router = world.rawTile(4, 2), conduitUp1 = world.rawTile(4, 1),
+                conduitLeft = world.rawTile(3, 2), conduitUp2 = world.rawTile(4, 3), conduitRight = world.rawTile(5, 2),
+                leftTank = world.rawTile(1, 2), topTank = world.rawTile(4, 5), rightTank = world.rawTile(7, 2);
 
         source.setBlock(Blocks.liquidSource, Team.sharded);
         source.build.configureAny(Liquids.water);
         conduitUp1.setBlock(Blocks.conduit, Team.sharded, 1);
         router.setBlock(Blocks.liquidRouter, Team.sharded);
-        conduitLeft.setBlock(Blocks.conduit, Team.sharded,2);
+        conduitLeft.setBlock(Blocks.conduit, Team.sharded, 2);
         conduitUp2.setBlock(Blocks.conduit, Team.sharded, 1);
         conduitRight.setBlock(Blocks.conduit, Team.sharded, 0);
         leftTank.setBlock(Blocks.liquidTank, Team.sharded);
@@ -473,9 +482,10 @@ public class ApplicationTests{
         state.set(State.playing);
         state.rules.limitMapArea = false;
         Tile source1 = world.rawTile(4, 0), source2 = world.rawTile(6, 0), s1conveyor = world.rawTile(4, 1),
-        s2conveyor = world.rawTile(6, 1), s1s2conveyor = world.rawTile(5, 1), sorter = world.rawTile(5, 2),
-        leftconveyor = world.rawTile(4, 2), rightconveyor = world.rawTile(6, 2), sortedconveyor = world.rawTile(5, 3),
-        leftVault = world.rawTile(2, 2), rightVault = world.rawTile(8, 2), topVault = world.rawTile(5, 5);
+                s2conveyor = world.rawTile(6, 1), s1s2conveyor = world.rawTile(5, 1), sorter = world.rawTile(5, 2),
+                leftconveyor = world.rawTile(4, 2), rightconveyor = world.rawTile(6, 2),
+                sortedconveyor = world.rawTile(5, 3),
+                leftVault = world.rawTile(2, 2), rightVault = world.rawTile(8, 2), topVault = world.rawTile(5, 5);
 
         source1.setBlock(Blocks.itemSource, Team.sharded);
         source1.build.configureAny(Items.coal);
@@ -505,10 +515,10 @@ public class ApplicationTests{
         world.loadMap(testMap);
         state.set(State.playing);
         state.rules.limitMapArea = false;
-        Tile source1 = world.rawTile(5, 0),  conveyor = world.rawTile(5, 1),
-        router = world.rawTile(5, 2), leftconveyor = world.rawTile(4, 2), rightconveyor = world.rawTile(6, 2),
-        middleconveyor = world.rawTile(5, 3), leftVault = world.rawTile(2, 2),
-        rightVault = world.rawTile(8, 2), topVault = world.rawTile(5, 5);
+        Tile source1 = world.rawTile(5, 0), conveyor = world.rawTile(5, 1),
+                router = world.rawTile(5, 2), leftconveyor = world.rawTile(4, 2), rightconveyor = world.rawTile(6, 2),
+                middleconveyor = world.rawTile(5, 3), leftVault = world.rawTile(2, 2),
+                rightVault = world.rawTile(8, 2), topVault = world.rawTile(5, 5);
 
         source1.setBlock(Blocks.itemSource, Team.sharded);
         source1.build.configureAny(Items.coal);
@@ -533,9 +543,9 @@ public class ApplicationTests{
         world.loadMap(testMap);
         state.set(State.playing);
         state.rules.limitMapArea = false;
-        Tile source1 = world.rawTile(5,0),source2 = world.rawTile(7, 2),  conveyor1 = world.rawTile(5, 1),
-        conveyor2 = world.rawTile(6,2), junction = world.rawTile(5, 2), conveyor3 = world.rawTile(5,3),
-        conveyor4 = world.rawTile(4,2), vault2 = world.rawTile(3, 1), vault1 = world.rawTile(5,5);
+        Tile source1 = world.rawTile(5, 0), source2 = world.rawTile(7, 2), conveyor1 = world.rawTile(5, 1),
+                conveyor2 = world.rawTile(6, 2), junction = world.rawTile(5, 2), conveyor3 = world.rawTile(5, 3),
+                conveyor4 = world.rawTile(4, 2), vault2 = world.rawTile(3, 1), vault1 = world.rawTile(5, 5);
         source1.setBlock(Blocks.itemSource, Team.sharded);
         source1.build.configureAny(Items.coal);
         source2.setBlock(Blocks.itemSource, Team.sharded);
@@ -555,21 +565,21 @@ public class ApplicationTests{
     }
 
     @Test
-    void blockOverlapRemoved(){
+    void blockOverlapRemoved() {
         world.loadMap(testMap);
         state.set(State.playing);
 
-        //edge block
+        // edge block
         world.tile(1, 1).setBlock(Blocks.coreShard);
         assertEquals(Blocks.coreShard, world.tile(0, 0).block());
 
-        //this should overwrite the block
+        // this should overwrite the block
         world.tile(2, 2).setBlock(Blocks.coreShard);
         assertEquals(Blocks.air, world.tile(0, 0).block());
     }
 
     @Test
-    void conveyorCrash(){
+    void conveyorCrash() {
         world.loadMap(testMap);
         state.set(State.playing);
 
@@ -578,8 +588,8 @@ public class ApplicationTests{
     }
 
     @Test
-    void conveyorBench(){
-        int[] itemsa = {0};
+    void conveyorBench() {
+        int[] itemsa = { 0 };
 
         world.loadMap(testMap);
         state.set(State.playing);
@@ -590,36 +600,38 @@ public class ApplicationTests{
 
         Seq<Building> entities = Seq.with(world.tile(0, 0).build);
 
-        for(int i = 0; i < length; i++){
+        for (int i = 0; i < length; i++) {
             world.tile(i + 1, 0).setBlock(Blocks.conveyor, Team.sharded, 0);
             entities.add(world.tile(i + 1, 0).build);
         }
 
-        world.tile(length + 1, 0).setBlock(new Block("___"){{
-            hasItems = true;
-            destructible = true;
-            buildType = () -> new Building(){
-                @Override
-                public void handleItem(Building source, Item item){
-                    itemsa[0] ++;
-                }
+        world.tile(length + 1, 0).setBlock(new Block("___") {
+            {
+                hasItems = true;
+                destructible = true;
+                buildType = () -> new Building() {
+                    @Override
+                    public void handleItem(Building source, Item item) {
+                        itemsa[0]++;
+                    }
 
-                @Override
-                public boolean acceptItem(Building source, Item item){
-                    return true;
-                }
-            };
-        }}, Team.sharded);
+                    @Override
+                    public boolean acceptItem(Building source, Item item) {
+                        return true;
+                    }
+                };
+            }
+        }, Team.sharded);
 
         entities.each(Building::updateProximity);
 
-        //warmup
-        for(int i = 0; i < 100000; i++){
+        // warmup
+        for (int i = 0; i < 100000; i++) {
             entities.each(Building::update);
         }
 
         Time.mark();
-        for(int i = 0; i < 200000; i++){
+        for (int i = 0; i < 200000; i++) {
             entities.each(Building::update);
         }
         Log.info(Time.elapsed() + "ms to process " + itemsa[0] + " items");
@@ -627,17 +639,18 @@ public class ApplicationTests{
     }
 
     @Test
-    void load77Save(){
+    void load77Save() {
         resetWorld();
         SaveIO.load(Core.files.internal("77.msav"));
 
-        //just tests if the map was loaded properly and didn't crash, no validity checks currently
+        // just tests if the map was loaded properly and didn't crash, no validity
+        // checks currently
         assertEquals(276, world.width());
         assertEquals(10, world.height());
     }
 
     @Test
-    void load85Save(){
+    void load85Save() {
         resetWorld();
         SaveIO.load(Core.files.internal("85.msav"));
 
@@ -646,7 +659,7 @@ public class ApplicationTests{
     }
 
     @Test
-    void load108Save(){
+    void load108Save() {
         resetWorld();
         SaveIO.load(Core.files.internal("108.msav"));
 
@@ -655,7 +668,7 @@ public class ApplicationTests{
     }
 
     @Test
-    void load114Save(){
+    void load114Save() {
         resetWorld();
         SaveIO.load(Core.files.internal("114.msav"));
 
@@ -664,28 +677,30 @@ public class ApplicationTests{
     }
 
     @Test
-    void arrayIterators(){
-        Seq<String> arr = Seq.with("a", "b" , "c", "d", "e", "f");
+    void arrayIterators() {
+        Seq<String> arr = Seq.with("a", "b", "c", "d", "e", "f");
         Seq<String> results = new Seq<>();
 
-        for(String s : arr);
-        for(String s : results);
+        for (String s : arr)
+            ;
+        for (String s : results)
+            ;
 
         Seq.iteratorsAllocated = 0;
 
-        //simulate non-enhanced for loops, which should be correct
+        // simulate non-enhanced for loops, which should be correct
 
-        for(int i = 0; i < arr.size; i++){
-            for(int j = 0; j < arr.size; j++){
+        for (int i = 0; i < arr.size; i++) {
+            for (int j = 0; j < arr.size; j++) {
                 results.add(arr.get(i) + arr.get(j));
             }
         }
 
         int index = 0;
 
-        //test nested for loops
-        for(String s : arr){
-            for(String s2 : arr){
+        // test nested for loops
+        for (String s : arr) {
+            for (String s2 : arr) {
                 assertEquals(results.get(index++), s + s2);
             }
         }
@@ -695,14 +710,14 @@ public class ApplicationTests{
     }
 
     @Test
-    void inventoryDeposit(){
+    void inventoryDeposit() {
         depositTest(Blocks.surgeSmelter, Items.copper);
         depositTest(Blocks.vault, Items.copper);
         depositTest(Blocks.thoriumReactor, Items.thorium);
     }
 
     @Test
-    void edges(){
+    void edges() {
         Point2[] edges = Edges.getEdges(1);
         assertEquals(edges[0], new Point2(1, 0));
         assertEquals(edges[1], new Point2(0, 1));
@@ -714,13 +729,13 @@ public class ApplicationTests{
     }
 
     @Test
-    void buildingOverlap(){
+    void buildingOverlap() {
         initBuilding();
 
         Unit d1 = UnitTypes.poly.create(Team.sharded);
         Unit d2 = UnitTypes.poly.create(Team.sharded);
 
-        //infinite build range
+        // infinite build range
         state.rules.editor = true;
         state.rules.infiniteResources = true;
         state.rules.buildSpeedMultiplier = 999999f;
@@ -741,7 +756,7 @@ public class ApplicationTests{
     }
 
     @Test
-    void buildingDestruction(){
+    void buildingDestruction() {
         initBuilding();
 
         Builderc d1 = UnitTypes.poly.create(Team.sharded);
@@ -762,7 +777,7 @@ public class ApplicationTests{
 
         Time.setDeltaProvider(() -> 9999f);
 
-        //prevents range issues
+        // prevents range issues
         state.rules.infiniteResources = true;
 
         d1.update();
@@ -773,7 +788,7 @@ public class ApplicationTests{
         d2.clearBuilding();
         d2.addBuild(new BuildPlan(1, 1));
 
-        for(int i = 0; i < 3; i++){
+        for (int i = 0; i < 3; i++) {
             d2.update();
         }
 
@@ -783,12 +798,12 @@ public class ApplicationTests{
     }
 
     @Test
-    void allBlockTest(){
+    void allBlockTest() {
         Tiles tiles = world.resize(80, 80);
 
         world.beginMapLoad();
-        for(int x = 0; x < tiles.width; x++){
-            for(int y = 0; y < tiles.height; y++){
+        for (int x = 0; x < tiles.width; x++) {
+            for (int y = 0; y < tiles.height; y++) {
                 tiles.set(x, y, new Tile(x, y, Blocks.stone, Blocks.air, Blocks.air));
             }
         }
@@ -796,12 +811,12 @@ public class ApplicationTests{
         state.rules.canGameOver = false;
         state.rules.borderDarkness = false;
 
-        for(int x = 0, y = 0, i = 0; i < content.blocks().size; i ++){
+        for (int x = 0, y = 0, i = 0; i < content.blocks().size; i++) {
             Block block = content.block(i);
-            if(block.canBeBuilt()){
-                int offset = Math.max(block.size % 2 == 0 ? block.size/2 - 1 : block.size/2, 0);
+            if (block.canBeBuilt()) {
+                int offset = Math.max(block.size % 2 == 0 ? block.size / 2 - 1 : block.size / 2, 0);
 
-                if(x + block.size + 1 >= world.width()){
+                if (x + block.size + 1 >= world.width()) {
                     y += maxHeight;
                     maxHeight = 0;
                     x = 0;
@@ -814,13 +829,13 @@ public class ApplicationTests{
         }
         world.endMapLoad();
 
-        for(int x = 0; x < tiles.width; x++){
-            for(int y = 0; y < tiles.height; y++){
+        for (int x = 0; x < tiles.width; x++) {
+            for (int y = 0; y < tiles.height; y++) {
                 Tile tile = world.rawTile(x, y);
-                if(tile.build != null){
-                    try{
+                if (tile.build != null) {
+                    try {
                         tile.build.update();
-                    }catch(Throwable t){
+                    } catch (Throwable t) {
                         fail("Failed to update block '" + tile.block() + "'.", t);
                     }
                     assertEquals(tile.block(), tile.build.block);
@@ -830,15 +845,16 @@ public class ApplicationTests{
         }
     }
 
-    void checkPayloads(){
-        for(int x = 0; x < world.tiles.width; x++){
-            for(int y = 0; y < world.tiles.height; y++){
+    void checkPayloads() {
+        for (int x = 0; x < world.tiles.width; x++) {
+            for (int y = 0; y < world.tiles.height; y++) {
                 Tile tile = world.rawTile(x, y);
-                if(tile.build != null && tile.isCenter() && !(tile.block() instanceof CoreBlock)){
-                    try{
+                if (tile.build != null && tile.isCenter() && !(tile.block() instanceof CoreBlock)) {
+                    try {
                         tile.build.update();
-                    }catch(Throwable t){
-                        fail("Failed to update block in payload: '" + ((BuildPayload)tile.build.getPayload()).block() + "'", t);
+                    } catch (Throwable t) {
+                        fail("Failed to update block in payload: '" + ((BuildPayload) tile.build.getPayload()).block()
+                                + "'", t);
                     }
                     assertEquals(tile.block(), tile.build.block);
                     assertEquals(tile.block().health, tile.build.health());
@@ -848,13 +864,13 @@ public class ApplicationTests{
     }
 
     @Test
-    void allPayloadBlockTest(){
+    void allPayloadBlockTest() {
         int ts = 20;
         Tiles tiles = world.resize(ts * 3, ts * 3);
 
         world.beginMapLoad();
-        for(int x = 0; x < tiles.width; x++){
-            for(int y = 0; y < tiles.height; y++){
+        for (int x = 0; x < tiles.width; x++) {
+            for (int y = 0; y < tiles.height; y++) {
                 tiles.set(x, y, new Tile(x, y, Blocks.stone, Blocks.air, Blocks.air));
             }
         }
@@ -862,7 +878,7 @@ public class ApplicationTests{
         tiles.getn(tiles.width - 2, tiles.height - 2).setBlock(Blocks.coreShard, Team.sharded);
 
         Seq<Block> blocks = content.blocks().select(b -> b.canBeBuilt());
-        for(int i = 0; i < blocks.size; i++){
+        for (int i = 0; i < blocks.size; i++) {
             int x = (i % ts) * 3 + 1;
             int y = (i / ts) * 3 + 1;
             Tile tile = tiles.get(x, y);
@@ -881,24 +897,23 @@ public class ApplicationTests{
         checkPayloads();
     }
 
-
     @Test
     void LogicBlockInit() {
         createMap();
         state.set(State.playing);
-        
+
         // Place a microProcessor
         Tile tile = world.tile(5, 5);
         Block processor = Blocks.microProcessor;
         tile.setBlock(processor, Team.sharded);
         // Get the LogicBlock.LogicBuild instance
-        LogicBlock.LogicBuild build = (LogicBlock.LogicBuild)tile.build;
-        
+        LogicBlock.LogicBuild build = (LogicBlock.LogicBuild) tile.build;
+
         // Test initial state of LogicBlock
         assertTrue(processor.configurable, "Block should be configurable");
         assertTrue(processor.canBreak(tile), "Logic block can break by default");
         assertFalse(processor.checkForceDark(tile), "Logic block should be accessible by default");
-        
+
         // Test initial state of LogicBuild
         assertNotNull(build, "Logic block should have a build");
         assertEquals("", build.code, "Initial code should be empty");
@@ -906,20 +921,20 @@ public class ApplicationTests{
         assertFalse(build.executor.initialized(), "Executor should not be initialized without code");
         assertNotNull(build.links, "Links should be initialized");
         assertTrue(build.links.isEmpty(), "Initial links should be empty");
-        
+
     }
 
     @Test
     void LogicBuildUpdateCode() {
         createMap();
         state.set(State.playing);
-        
+
         // Place a microProcessor
         Tile tile = world.tile(5, 5);
         Block processor = Blocks.microProcessor;
         tile.setBlock(processor, Team.sharded);
         // Get the LogicBlock.LogicBuild instance
-        LogicBlock.LogicBuild build = (LogicBlock.LogicBuild)tile.build;
+        LogicBlock.LogicBuild build = (LogicBlock.LogicBuild) tile.build;
 
         // Test valid
         String testCode1 = "print \"test\"";
@@ -939,16 +954,15 @@ public class ApplicationTests{
         assertEquals(testCode3, build.code, "Logic code should be set");
         assertTrue(build.executor.initialized(), "Executor should be initialized even with invalid code");
 
-         // Test long
-         StringBuilder sb = new StringBuilder();
-         for (int i = 0; i < 256; i++) {
-             sb.append("long");
-         }
-         String testCode4 = sb.toString();
-         build.updateCode(testCode4);
-         assertEquals(testCode4, build.code, "Logic code should be set");
-         assertTrue(build.executor.initialized(), "Executor should be initialized after code update");
-
+        // Test long
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 256; i++) {
+            sb.append("long");
+        }
+        String testCode4 = sb.toString();
+        build.updateCode(testCode4);
+        assertEquals(testCode4, build.code, "Logic code should be set");
+        assertTrue(build.executor.initialized(), "Executor should be initialized after code update");
 
         // Test valid link1
         Tile conveyorTile1 = world.tile(5, 5);
@@ -978,12 +992,12 @@ public class ApplicationTests{
     }
 
     @Test
-    void testLogicBlockLinkFSM(){
+    void testLogicBlockLinkFSM() {
         Tiles tiles = world.resize(300, 300);
         world.beginMapLoad();
         tiles.fill();
         world.endMapLoad();
-        
+
         state.set(State.playing);
 
         // Place and build logic & target blocks
@@ -996,18 +1010,19 @@ public class ApplicationTests{
         targetTile.setBlock(Blocks.conveyor, Team.sharded);
         invalidTile1.setBlock(Blocks.conveyor, Team.sharded);
 
-        LogicBlock.LogicBuild build = (LogicBlock.LogicBuild)logicTile.build;
+        LogicBlock.LogicBuild build = (LogicBlock.LogicBuild) logicTile.build;
         Building targetBuild = targetTile.build;
         Building invalidBuild = invalidTile1.build;
 
-        // Test Idle (logic block clicked) Configuring (click on validated non-linked block) Link-Active
+        // Test Idle (logic block clicked) Configuring (click on validated non-linked
+        // block) Link-Active
         assertTrue(build.validLink(targetBuild), "Conveyor should be valid for linking");
         assertTrue(build.links.isEmpty(), "Initial link on logic block should be empty");
         build.onConfigureBuildTapped(targetBuild);
         assertEquals(1, build.links.size, "Should add link to logic block");
-        assertTrue(build.links.first().active,"Link should be active");
+        assertTrue(build.links.first().active, "Link should be active");
 
-        // Test Configuring (click on self or invalid position) Idle 
+        // Test Configuring (click on self or invalid position) Idle
         build.onConfigureBuildTapped(invalidBuild); // Clicking on out of range(invalid) block
         build.configure(emptyTile.pos()); // Clicking on empty tile
         build.onConfigureBuildTapped(null); // Clicking on empty
@@ -1016,34 +1031,34 @@ public class ApplicationTests{
 
         // Test Configuring (click on linked active block) Link_Inactive
         build.onConfigureBuildTapped(targetBuild);
-        assertFalse(build.links.first().active,"Link should now be inactive");
+        assertFalse(build.links.first().active, "Link should now be inactive");
 
         // Test Configuring (click on linked inactive block) Link_Active
         build.onConfigureBuildTapped(targetBuild);
-        assertTrue(build.links.first().active,"Link should now be active");
+        assertTrue(build.links.first().active, "Link should now be active");
     }
 
     @Test
-    public void testDrawSelectLogic() {
+    public void testDrawSelectLogicDummy() {
         // Initiate map and building
         createMap();
         state.set(State.playing);
         Tile tile = world.tile(5, 5);
         Block processor = Blocks.microProcessor;
         tile.setBlock(processor, Team.sharded);
-        LogicBlock.LogicBuild build = (LogicBlock.LogicBuild)tile.build;
-        
+        LogicBlock.LogicBuild build = (LogicBlock.LogicBuild) tile.build;
+
         // Testing drawing on self
         build.tag = "Test Tag";
         build.iconTag = 'A';
-        
+
         LogicBuild.DrawSelectInfo info = build.getDrawSelectInfo();
-        
+
         assertTrue(info.hasTag);
         assertEquals("Test Tag", info.tag);
         assertTrue(info.hasIcon);
         assertEquals('A', info.iconTag);
-        
+
         // Testing drawing on controlled units
         // Create units
         Unit unit1 = UnitTypes.poly.create(Team.sharded);
@@ -1058,7 +1073,7 @@ public class ApplicationTests{
         LogicAI ai1 = new LogicAI();
         ai1.controller = build;
         unit1.controller(ai1);
-        
+
         LogicAI ai2 = new LogicAI();
         ai2.controller = build;
         unit2.controller(ai2);
@@ -1072,7 +1087,7 @@ public class ApplicationTests{
         assertEquals(20f, unitInfo1.y);
         assertEquals(unit1.hitSize, unitInfo1.hitSize);
         assertEquals(unit1.rotation, unitInfo1.rotation);
-        
+
         LogicBuild.UnitInfo unitInfo2 = newInfo.controlledUnits.get(1);
         assertEquals(30f, unitInfo2.x);
         assertEquals(40f, unitInfo2.y);
@@ -1080,23 +1095,99 @@ public class ApplicationTests{
         assertEquals(unit2.rotation, unitInfo2.rotation);
     }
 
+    @Test
+    public void testDrawSelectDrawingLogicMock() {
+        // Create mock dependencies
+        LogicBlock.UnitAccess mockUnitAccess = mock(LogicBlock.UnitAccess.class);
+        LogicBlock.DrawOperations mockDrawOps = mock(LogicBlock.DrawOperations.class);
+        LogicBlock.RendererState mockRendererState = mock(LogicBlock.RendererState.class);
+
+        // Create argument captors for drawing parameters
+        ArgumentCaptor<Float> xCaptor = ArgumentCaptor.forClass(Float.class);
+        ArgumentCaptor<Float> yCaptor = ArgumentCaptor.forClass(Float.class);
+        ArgumentCaptor<Float> sizeCaptor = ArgumentCaptor.forClass(Float.class);
+        ArgumentCaptor<Float> rotationCaptor = ArgumentCaptor.forClass(Float.class);
+        ArgumentCaptor<String> tagCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Character> iconCaptor = ArgumentCaptor.forClass(Character.class);
+
+        // Initiate map and building
+        createMap();
+        state.set(State.playing);
+        Tile tile = world.tile(5, 5);
+        Block processor = Blocks.microProcessor;
+        tile.setBlock(processor, Team.sharded);
+        LogicBlock.LogicBuild build = (LogicBlock.LogicBuild) tile.build;
+        build.tag = "Test Tag";
+        build.iconTag = 'A';
+
+        // Create mock units with fields
+        Unit mockUnit1 = mock(Unit.class);
+        mockUnit1.x = 10f;
+        mockUnit1.y = 20f;
+        mockUnit1.hitSize = 5f;
+        mockUnit1.rotation = 30f;
+
+        Unit mockUnit2 = mock(Unit.class);
+        mockUnit2.x = 40f;
+        mockUnit2.y = 50f;
+        mockUnit2.hitSize = 8f;
+        mockUnit2.rotation = 60f;
+
+        // Set up mockUnitAccess to handle controlled units
+        doAnswer(invocation -> {
+            Cons<Unit> cons = invocation.getArgument(1);
+            cons.get(mockUnit1);
+            cons.get(mockUnit2);
+            return null;
+        }).when(mockUnitAccess).eachControlledUnit(eq(build), any());
+
+        // Set up mockRenderState
+        when(mockRendererState.shouldDrawTag(anyBoolean(), eq("Test Tag"))).thenReturn(true);
+
+        // Set up verifier for drawing sequence
+        InOrder drawInOrder = inOrder(mockDrawOps);
+
+        // Execute method
+        build.drawSelect(mockUnitAccess, mockDrawOps, mockRendererState);
+
+        // Verify both unit squares are drawn
+        verify(mockDrawOps, atLeastOnce()).drawUnitSquare(
+            xCaptor.capture(), yCaptor.capture(), sizeCaptor.capture(), rotationCaptor.capture());
+        verify(mockDrawOps, atLeastOnce()).drawUnitSquare(
+            xCaptor.capture(), yCaptor.capture(), sizeCaptor.capture(), rotationCaptor.capture());
+
+        // Verify tag is drawn
+        drawInOrder.verify(mockDrawOps).drawProcessorTag(
+            tagCaptor.capture(), eq(40.0f), eq(40.0f), eq(8.0f));
+        assertEquals("Test Tag", tagCaptor.getValue());
+
+        // Verify icon is drawn
+        drawInOrder.verify(mockDrawOps).drawProcessorIcon(
+            iconCaptor.capture(), eq(40.0f), eq(40.0f), eq(8.0f));
+        assertEquals('A', iconCaptor.getValue());
+
+        // Verify no more interactions
+        drawInOrder.verifyNoMoreInteractions();
+    }
+
 
     @TestFactory
-    DynamicTest[] testSectorValidity(){
+    DynamicTest[] testSectorValidity() {
         Seq<DynamicTest> out = new Seq<>();
-        if(world == null) world = new World();
+        if (world == null)
+            world = new World();
 
-        for(SectorPreset zone : content.sectors()){
+        for (SectorPreset zone : content.sectors()) {
 
             out.add(dynamicTest(zone.name, () -> {
                 Time.setDeltaProvider(() -> 1f);
 
                 logic.reset();
                 state.rules.sector = zone.sector;
-                try{
+                try {
                     world.loadGenerator(zone.generator.map.width, zone.generator.map.height, zone.generator::generate);
-                }catch(SaveException e){
-                    //fails randomly and I don't care about fixing it
+                } catch (SaveException e) {
+                    // fails randomly and I don't care about fixing it
                     e.printStackTrace();
                     return;
                 }
@@ -1104,26 +1195,25 @@ public class ApplicationTests{
                 ObjectSet<Item> resources = new ObjectSet<>();
                 boolean hasSpawnPoint = false;
 
-                for(Tile tile : world.tiles){
-                    if(tile.drop() != null){
+                for (Tile tile : world.tiles) {
+                    if (tile.drop() != null) {
                         resources.add(tile.drop());
                     }
-                    if(tile.block() instanceof CoreBlock && tile.team() == state.rules.defaultTeam){
+                    if (tile.block() instanceof CoreBlock && tile.team() == state.rules.defaultTeam) {
                         hasSpawnPoint = true;
                     }
                 }
 
-                if(state.rules.waves){
+                if (state.rules.waves) {
                     Seq<SpawnGroup> spawns = state.rules.spawns;
 
                     int bossWave = 0;
-                    if(state.rules.winWave > 0){
+                    if (state.rules.winWave > 0) {
                         bossWave = state.rules.winWave;
-                    }else{
-                        outer:
-                        for(int i = 1; i <= 1000; i++){
-                            for(SpawnGroup spawn : spawns){
-                                if(spawn.effect == StatusEffects.boss && spawn.getSpawned(i) > 0){
+                    } else {
+                        outer: for (int i = 1; i <= 1000; i++) {
+                            for (SpawnGroup spawn : spawns) {
+                                if (spawn.effect == StatusEffects.boss && spawn.getSpawned(i) > 0) {
                                     bossWave = i;
                                     break outer;
                                 }
@@ -1131,50 +1221,54 @@ public class ApplicationTests{
                         }
                     }
 
-                    if(state.rules.attackMode){
+                    if (state.rules.attackMode) {
                         bossWave = 100;
-                    }else{
+                    } else {
                         assertNotEquals(0, bossWave, "Sector " + zone.name + " doesn't have a boss/end wave.");
                     }
 
-                    if(state.rules.winWave > 0) bossWave = state.rules.winWave - 1;
+                    if (state.rules.winWave > 0)
+                        bossWave = state.rules.winWave - 1;
 
-                    //TODO check for difficulty?
-                    for(int i = 1; i <= bossWave; i++){
+                    // TODO check for difficulty?
+                    for (int i = 1; i <= bossWave; i++) {
                         int total = 0;
-                        for(SpawnGroup spawn : spawns){
+                        for (SpawnGroup spawn : spawns) {
                             total += spawn.getSpawned(i - 1);
                         }
 
                         assertNotEquals(0, total, "Sector " + zone + " has no spawned enemies at wave " + i);
-                        //TODO this is flawed and needs to be changed later
-                        //assertTrue(total < 75, "Sector spawns too many enemies at wave " + i + " (" + total + ")");
+                        // TODO this is flawed and needs to be changed later
+                        // assertTrue(total < 75, "Sector spawns too many enemies at wave " + i + " (" +
+                        // total + ")");
                     }
                 }
 
                 assertEquals(1, Team.sharded.cores().size, "Sector must have one core: " + zone);
 
                 assertTrue(hasSpawnPoint, "Sector \"" + zone.name + "\" has no spawn points.");
-                assertTrue(spawner.countSpawns() > 0 || (state.rules.attackMode && state.rules.waveTeam.data().hasCore()), "Sector \"" + zone.name + "\" has no enemy spawn points: " + spawner.countSpawns());
+                assertTrue(
+                        spawner.countSpawns() > 0 || (state.rules.attackMode && state.rules.waveTeam.data().hasCore()),
+                        "Sector \"" + zone.name + "\" has no enemy spawn points: " + spawner.countSpawns());
             }));
         }
 
         return out.toArray(DynamicTest.class);
     }
 
-    void initBuilding(){
+    void initBuilding() {
         createMap();
 
         Tile core = world.tile(5, 5);
         core.setBlock(Blocks.coreShard, Team.sharded, 0);
-        for(Item item : content.items()){
+        for (Item item : content.items()) {
             core.build.items.set(item, 3000);
         }
 
         assertEquals(core.build, Team.sharded.data().core());
     }
 
-    void depositTest(Block block, Item item){
+    void depositTest(Block block, Item item) {
         Unit unit = UnitTypes.mono.create(Team.sharded);
         Tile tile = new Tile(0, 0, Blocks.air, Blocks.air, block);
         tile.setTeam(Team.sharded);
